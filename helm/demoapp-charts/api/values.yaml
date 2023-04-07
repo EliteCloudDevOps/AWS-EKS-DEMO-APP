@@ -1,0 +1,44 @@
+#values for testapp-api helm
+#values for raffal-front-app helm
+
+environment: development
+commit_id: ""
+
+# secretsManagerId: "testapp/secrets"
+        
+weight: 100
+replicas: 1     
+
+api:
+  name: api
+  image:
+    repository: 192745211382.dkr.ecr.us-east-1.amazonaws.com/testapp_api
+    tag: latest
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 250m
+      memory: 0.5Gi      
+  ports:
+    servicePort: 80
+    containerPort: 3001        
+  env:
+    secrets_name: testapp-secrets
+
+autoscaling:
+  min: 1
+  max: 5
+
+# # api gateway
+istio:
+  gateway_namespace: testapp-api
+  gateway_name: testapp-api
+
+  gateway:
+    tls:
+      mode: SIMPLE
+      credentialName: sysdaemons-wildcard-tls  
+hosts:
+  - testapp-api.sysdaemons.com

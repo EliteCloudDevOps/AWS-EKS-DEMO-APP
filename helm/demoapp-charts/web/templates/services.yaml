@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.web.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    environment: {{ .Values.environment }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: web
+    port: {{ .Values.web.ports.servicePort }}
+    targetPort: {{ .Values.web.ports.containerPort }}
+  selector:
+    app: {{ .Release.Name }}
+    environment: {{ .Values.environment }}
+---

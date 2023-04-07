@@ -1,0 +1,56 @@
+#testapp-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    environment: {{ .Values.environment }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      environment: {{ .Values.environment }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 33%
+      maxSurge: 50%
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        environment: {{ .Values.environment }}
+        component: primary
+        {{- if eq .Values.environment "development" }}
+        commit_id: {{ .Values.commit_id }}
+        {{- end }}
+        # prometheus.io/scrape: "true"
+        # prometheus.io/port: "9253"
+        # prometheus.io/path: "metrics"
+    spec:
+      containers:
+      - name:  {{ .Values.api.name }} 
+        image: {{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: {{ .Values.api.ports.containerPort }}
+# TODO: Re-adjust this after the migration.
+        envFrom:
+        - secretRef:
+            name: {{ .Values.api.env.secrets_name }}
+        resources:
+          limits:
+            cpu: {{ .Values.api.resources.limits.cpu }}
+            memory: {{ .Values.api.resources.limits.memory }}
+          requests:
+            cpu: {{ .Values.api.resources.requests.cpu }}
+            memory: {{ .Values.api.resources.requests.memory }}
+        # command:
+        # - bash
+        # - '-c'
+        # - |
+        #   yarn start

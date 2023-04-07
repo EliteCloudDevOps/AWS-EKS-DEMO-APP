@@ -1,0 +1,28 @@
+# this is for sso
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: runner-role
+  namespace: gitlab-runner
+rules:
+  - apiGroups:
+      - "*"
+    verbs:
+      - "*"
+    resources:
+      - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: runner-role-binding
+  namespace: gitlab-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: runner-role
+subjects:
+- kind: ServiceAccount
+  name: default 
+  namespace: gitlab-runner

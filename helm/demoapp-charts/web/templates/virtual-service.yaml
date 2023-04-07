@@ -1,0 +1,24 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    environment: {{ .Values.environment }}  
+spec:
+  hosts:
+  {{- range .Values.hosts }}
+  - {{ . | quote }}
+  {{- end }}
+  gateways:
+  - {{ .Values.istio.gateway_namespace }}/{{ .Values.istio.gateway_name }}
+  http:
+  - timeout: 600s
+    route:
+    - destination:
+        host: {{ .Values.web.name }}.{{ .Release.Namespace }}.svc.cluster.local
+        subset: {{ .Release.Namespace }}
+        port:
+          number: {{ .Values.web.ports.servicePort }}
+      weight: {{ .Values.weight }}

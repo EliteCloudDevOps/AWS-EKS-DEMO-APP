@@ -1,0 +1,13 @@
+apiVersion: v2
+
+name: testapp-api
+
+description: A Helm chart for Kubernetes test node app api
+
+maintainers:
+  - name: Rishi Gautam
+    email: thunderdfrost@gmail.com
+
+type: application
+
+version: 0.0.1

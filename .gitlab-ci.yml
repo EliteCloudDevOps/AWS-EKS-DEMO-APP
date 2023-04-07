@@ -1,0 +1,128 @@
+variables:
+  DOCKER_REGISTRY: $AWS_ECR_PREFIX
+  DOCKER_HOST: "tcp://localhost:2375"
+  AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+  APP_NAME: demoapp
+  # DOCKER_HOST: tcp://docker:2375
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "" 
+  EKS_CLUSTER: demoapp-eks 
+
+stages:
+  - helm    
+  - build
+  - test
+  - deploy
+
+.deploy_job_rule: &deploy_job_rule
+  - if: '$CI_PIPELINE_SOURCE == "web"'
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"'
+
+.ci_job_rule: &ci_job_rule
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"'
+    changes:
+    - node-3tier-app2/**/*
+
+.helm_package_job_rule: &helm_package_job_rule
+  - if: '$CI_PIPELINE_SOURCE == "web"'
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_PIPELINE_SOURCE == "push"'
+    changes:
+    - helm/demoapp-charts/**/*
+
+.pre_deploy: &pre_deploy
+  rules:
+    - *deploy_job_rule
+  # image: dtzar/helm-kubectl
+  image: 
+    name: rraj4/demoapp:deploy
+    entrypoint: [""]  
+  services:
+    - docker:19.03-dind    
+  stage: deploy
+  before_script:
+    - aws ecr get-login-password | docker login --username AWS --password-stdin $DOCKER_REGISTRY
+    - helm plugin install https://github.com/hypnoglow/helm-s3.git
+    - helm repo add demoapp-api s3://demoapp-helm-chart/api/
+    - helm repo add demoapp-web s3://demoapp-helm-chart/web/    
+    - cd helm/demoapp-charts/
+    - aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_DEFAULT_REGION
+    - kubectl get ns
+
+.pre_helm_package: &pre_helm_package
+  rules:
+    - *helm_package_job_rule  
+  # image: dtzar/helm-kubectl
+  image: 
+    name: rraj4/demoapp:deploy
+    entrypoint: [""]  
+  services:
+    - docker:19.03-dind  
+  stage: helm
+  before_script:
+    - aws ecr get-login-password | docker login --username AWS --password-stdin $DOCKER_REGISTRY
+    - helm plugin install https://github.com/hypnoglow/helm-s3.git
+    - helm repo add demoapp-api s3://demoapp-helm-chart/api/
+    - helm repo add demoapp-web s3://demoapp-helm-chart/web/
+    - cd helm/demoapp-charts
+    - sed -i 's;version:.*;version:\ '"$CI_PIPELINE_IID"';g' api/Chart.yaml
+    - sed -i 's;version:.*;version:\ '"$CI_PIPELINE_IID"';g' web/Chart.yaml
+ 
+build:
+  rules:
+    - *deploy_job_rule
+    # - *ci_job_rule
+  image: 
+    # name: amazon/aws-cli
+    name: rraj4/demoapp:deploy
+    entrypoint: [""]
+  services:
+    - docker:19.03-dind
+  stage: build  
+  before_script:
+    - aws --version
+    - docker --version
+    - aws ecr get-login-password | docker login --username AWS --password-stdin $DOCKER_REGISTRY
+  script:
+    - echo "building docker images"
+    - cd node-3tier-app2
+    - make release RELEASE='latest' ECR_REPO="$DOCKER_REGISTRY"
+
+test-code-job1:
+  # rules:
+  #   - *ci_job_rule
+  stage: test
+  script:
+    - echo "If the files are built successfully, test some files with one command:"
+
+test-code-job2:
+  # rules:
+    # - *ci_job_rule
+  stage: test
+  script:
+    - echo "If the files are built successfully, test other files with a different command:"
+
+deploy-web:
+  <<: *pre_deploy
+  script:
+    - export NAMESPACE=demoapp-web
+    - export RELEASE_NAME=demoapp-web
+    - helm upgrade --atomic --wait --timeout 10m --install --create-namespace -n $NAMESPACE $RELEASE_NAME demoapp-web/demoapp-web -f web/values.yaml --set commit_id="$CI_COMMIT_SHORT_SHA"
+
+deploy-api:
+  <<: *pre_deploy
+  script:
+    - export NAMESPACE=demoapp-api
+    - export RELEASE_NAME=demoapp-api    
+    - helm upgrade --atomic --wait --timeout 10m --install --create-namespace -n $NAMESPACE $RELEASE_NAME demoapp-api/demoapp-api -f api/values.yaml --set commit_id="$CI_COMMIT_SHORT_SHA"
+
+helm_package_web:
+  <<: *pre_helm_package
+  script:
+    - helm package web
+    - helm s3 push ./demoapp-web-* demoapp-web --force
+
+helm_package_api:
+  <<: *pre_helm_package
+  script:
+    - helm package api
+    - helm s3 push ./demoapp-api-* demoapp-api --force  
